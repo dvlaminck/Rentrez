@@ -1,0 +1,146 @@
+---
+title: "Analysis"
+output: html_document
+date: "`r Sys.Date()`"
+---
+
+PART 1
+
+```{r}
+library(stringr)
+library(dplyr)
+library(annotate)
+```
+
+Inputting dataframe:
+```{r}
+Sequences <- read.csv("Sequences.csv")
+```
+
+Printing each sequence:
+```{r}
+#HQ433692.1
+Sequences[1,2]
+```
+```{r}
+#HQ433694.1
+Sequences[2,2]
+```
+```{r}
+#HQ433691.1
+Sequences[3,2]
+```
+
+Length of each sequence:
+```{r}
+length <- Sequences %>%
+    mutate(length = str_length(Sequence)) %>%
+  select(-c(Sequence))
+print(length)
+```
+
+Splitting sequences into a character string with each individual letter separate:
+```{r}
+seq <- str_split(Sequences$Sequence, "", n=Inf)
+print(seq)
+```
+
+Calculating the number of times each nt appears in each sequence:
+```{r}
+nt <- Sequences %>%
+    mutate( A = str_count(seq, "A"), C = str_count(seq, "C"), G = str_count(seq, "G"), T = str_count(seq, "T")) %>%
+  select(-c(Sequence))
+print(nt)
+```
+
+Image of Borrelia burgdorferi:
+```{r echo = FALSE, results = 'asis'}
+image = "https://microbix.com/wp-content/uploads/2020/08/Borrelia-500259845-scaled.jpg"
+cat(paste0('<center><img src="', image,  '"></center>')) 
+```
+
+[Wikepedia page to learn more](https://en.wikipedia.org/wiki/Borrelia_burgdorferi)
+
+Calculating GC content for each sequence:
+```{r}
+g.count <- str_count(seq, "G")
+c.count <- str_count(seq, "C")
+
+GC <- Sequences %>%
+    mutate( GC_Content = (g.count + c.count) / str_length(seq) * 100 ) %>%
+  select(-c(Sequence))
+print(GC)
+```
+
+PART 2
+
+Inputting the sequence:
+```{r}
+#Because there is only one sequence we will just paste it as a string, if it were in FASTA format we could upload it using import.fasta() function in Bio2cor package, however this is easier in our case
+sequence <- "GCCTGATGGAGGGGGATAACTACTGGAAACGGTAGCTAATACCGCATGACCTCGCAAGAGCAAAGTGGGGGACCTTAGGGCCTCACGCCATCGGATGAACCCAGATGGGATTAGCTAGTAGGTGGGGTAATGGCTCACCTAGGCGACGATCCCTAGCTGGTCTGAGAGGATGACCAGCCACACTGGAACTGAGACACGGTCCAGACTCCTACGGGAGGCAGCAGTGGGGAATATTGCACAATGGGCGCAA"
+```
+
+Running blast query to find similar sequences:
+```{r}
+SeqXBlastDF<-blastSequences(paste(sequence),as='data.frame', timeout=40, hitListSize = 6)
+```
+
+```{r}
+#Number of similar sequences the output found
+nrow(SeqXBlastDF)
+```
+
+```{r}
+#analyzing the output from the blast search
+head(SeqXBlastDF)
+```
+Determining the organism from which the similar sequences come from: 
+```{r}
+SeqXBlastDF$Hit_def
+```
+
+Based on the output from the hit definition, we can see that this sequence likely belongs to Yersinia bacterial family. Majority of the sequences are Yersinia pestis, while a few are Yersinia pseudotuberculosis. Therefore, we can conclude that the sequence is not from a human.
+
+Checking the sequence similarity:
+```{r}
+#Making a new df with the originial sequence in it
+
+df<-data.frame("Original", sequence)
+names(df)<-c("Hit_accession", "Hsp_hseq")
+
+SeqXBlastDF1 <- SeqXBlastDF %>%
+  select(Hit_accession, Hsp_hseq)
+
+SeqXBlastDF1 <- rbind(df, SeqXBlastDF1)
+```
+
+Checking A, C, T, G content of all sequences:
+```{r}
+ SeqXBlastDF1 <- SeqXBlastDF1 %>%
+  mutate(A = str_count(SeqXBlastDF1$Hsp_hseq, "A"), C = str_count(SeqXBlastDF1$Hsp_hseq, "C"), G = str_count(SeqXBlastDF1$Hsp_hseq, "G"), T = str_count(SeqXBlastDF1$Hsp_hseq, "T")) %>%
+  select(-c(Hsp_hseq))
+
+         
+head(SeqXBlastDF1)
+```
+When compared with the original sequence, we can see that majority of our blast hits have a very similar sequence composition (A, C, T, G counts). This is indicitive that the sequences are likely very similar in nature. As stated previously, these sequence hits all stem from the Yersinia genus.
+
+Analyzing the similarity scores:
+```{r}
+SeqXBlastDF2 <- SeqXBlastDF %>%
+  select(Hit_accession, Hsp_score, Hsp_evalue)
+head(SeqXBlastDF2)
+```
+
+The Hsp_score is an indicator of the strength of each match. A high number in this category indicates that the BLAST hit scores are very similar to one another. Because of the high scores of 500 and 495, there is high sequence similarity to our original sequence from the lab.
+The Hsp_evalue represents the probability of getting a match by chance alone. Because the escore for each of these hits are extremely low, we are confident that these matches are not from chance.
+
+Based on all of these findings, we can be confident that the sequence belongs to Yersinia pestis:
+```{r echo = FALSE, results = 'asis'}
+image = "https://biologydictionary.net/yersinia-pestis/#foobox-1/0/coccobacillus.jpg"
+cat(paste0('<center><img src="', image,  '"></center>')) 
+```
+
+The clinician should definitely be worried. Yersinia pestis is a bacteria that infects humans and mammals. When a rodent flea carrying this bacteria bites a human, they are infected with the plague. This bacteria is extremely deadly. 
+
+[Yersinia pestis](https://en.wikipedia.org/wiki/Yersinia_pestis)
